@@ -24,11 +24,11 @@ class KuppoLangParser:
             return ("PRINT", line)
         if line.startswith(ASCII_PRINT_PREFIX):
             return ("ASCII_PRINT", line)
-        if re.match(r"모그+", line):
-            return ("JUMP", line[2:])
+        if line.startswith("젠장쿠뽀"):
+            return ("JUMP", line[4:])
         
         # 쿠뿌{exp}?{statement}
-        if re.match(r"쿠뿌+", line):
+        if re.match(r"모그루(\s*(\S+))모그(\s*(\S+))", line):
             return ("BRANCH", line)
         if re.match(r"(쿠뽀+)!(\s*(\S+))", line):
             return ("ASSIGN", line)
@@ -69,7 +69,7 @@ class KuppoLangParser:
         elif tokens[0] == "JUMP":
             return ("JUMP", self.parse_expr(tokens[1]))
         elif tokens[0] == "BRANCH":
-            match = re.match(r"쿠뿌(\s*(\S+))쿠뿌(\s*(\S+))", tokens[1])
+            match = re.match(r"모그루(\s*(\S+))모그(\s*(\S+))", tokens[1])
             branch_exp = match.group(2)
             execute_stmt = match.group(4)
 
