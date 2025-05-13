@@ -1,13 +1,17 @@
+import sys
 import re
 
 PRINT_PREFIX = "노동만세"
 ASCII_PRINT_PREFIX = "노동멋져"
+
+
 class KuppoLangParser:
     def __init__(self):
         self.variables = {}
+        self.start = False
+        self.end = False
 
     def delete_comment(self, line: str):
-        # 주석을 제거하는 정규 표현식
         line = re.sub(r"#.*", "", line)
         return line.strip()
 
@@ -20,31 +24,64 @@ class KuppoLangParser:
             return ("PRINT", line)
         if line.startswith(ASCII_PRINT_PREFIX):
             return ("ASCII_PRINT", line)
+        if re.match(r"모그+", line):
+            return ("JUMP", line[2:])
+        
+        # 쿠뿌{exp}?{statement}
+        if re.match(r"쿠뿌+", line):
+            return ("BRANCH", line)
         if re.match(r"(쿠뽀+)!(\s*(\S+))", line):
             return ("ASSIGN", line)
-        if re.search(r"쿠뽀+([~\?]쿠뽀+)+", line):
-            return ("EXPR", line)
-        if re.match(r"쿠뽀+", line) or re.match(r"(폼)|(포(오*)옴)", line):
-            return ("USE", line)
 
-        return ("UNKNOWN", line)
+
+        # if re.search(r"쿠뽀+([.\?~]쿠뽀+)+", line):
+        #     return ("EXPR", line)
+        # if re.match(r"쿠뽀+", line) or re.match(r"(폼)|(포(오*)옴)", line):
+        #     return ("USE", line)
+
+        return ("EXPR", line)
 
     def parse(self, tokens):
+        if tokens[0] == "START":
+            self.start = True
+            print("시작이다 쿠뽀~!")
+            return 
+        elif tokens[0] == "END":
+            self.end = True
+
+            if self.start:
+                print("끝이다 쿠뽀...")
+            return
+        
+        if not self.start:
+            return
+        if self.end:
+            return
+
         if tokens[0] == "ASSIGN":
             return self.parse_assign(tokens[1])
         elif tokens[0] == "PRINT":
             return self.parse_print(tokens[1])
         elif tokens[0] == "ASCII_PRINT":
             return self.parse_ascii_print(tokens[1])
-        elif tokens[0] == "START":
-            print("시작이다 쿠뽀~!")
-            return 
-        elif tokens[0] == "END":
-            print("끝이다 쿠뽀...")
-            return
         elif tokens[0] in ("EXPR", "USE"):
             return self.parse_expr(tokens[1])
-        return "UNKNOWN COMMAND"
+        elif tokens[0] == "JUMP":
+            return ("JUMP", self.parse_expr(tokens[1]))
+        elif tokens[0] == "BRANCH":
+            match = re.match(r"쿠뿌(\s*(\S+))쿠뿌(\s*(\S+))", tokens[1])
+            branch_exp = match.group(2)
+            execute_stmt = match.group(4)
+
+            val_branch = self.evaluate_expression(branch_exp)
+
+            if val_branch == 0:
+                return
+            else:
+                # print(f"쿠뿌~! {val_branch}이므로 {execute_stmt}을 실행한다 쿠뽀~!")
+                return self.parse_start(execute_stmt)
+        
+        raise ValueError(f"Unknown token: {tokens[0]}")
     
     def parse_start(self, line):
         return self.parse(self.tokenize(line))
@@ -85,13 +122,13 @@ class KuppoLangParser:
         else:
             ascii_expression = ascii_expression[1:]
 
-        if ascii_expression == "뽐":
+        if ascii_expression == "":
             # space bar
             print(" ", end="" if not is_enter else "\n")
             return
 
         value = self.parse_start(ascii_expression)
-        print(f"{chr(value+64)}", end="" if not is_enter else "\n")
+        print(f"{chr(value)}", end="" if not is_enter else "\n")
 
     def parse_expr(self, command):
         result = self.evaluate_expression(command)
@@ -103,7 +140,7 @@ class KuppoLangParser:
         # 쿠뽀~쿠뽀 => 덧셈
         # 쿠뽀?쿠뽀 => 뺄셈
 
-        if re.match(r"(\S+)\s*([~\?])\s*(\S+)", expression):
+        if re.match(r"(\S+)\s*([.~\?])\s*(\S+)", expression):
             return self.evaluate_expression_with_operators(expression)
         elif re.match(r"쿠뽀+", expression):
             # Get variable value
@@ -122,23 +159,20 @@ class KuppoLangParser:
 
     
     def evaluate_expression_with_operators(self, expression):
-        terms = re.split(r"([~\?])", expression)
+        terms = re.split(r"([.\?~])", expression)
         terms = [term.strip() for term in terms if term.strip()]
         result = self.evaluate_expression(terms[0])
 
         for i in range(1, len(terms) - 1, 2):
             operator = terms[i]
-            # print(terms[i + 1])
             operand = self.evaluate_expression(terms[i + 1])
 
-            if operator == "~":
+            if operator == ".":
                 result += operand
             elif operator == "?":
                 result -= operand
-            # elif operator == "*":
-            #     result *= operand
-            # elif operator == "/" and operand != 0:
-            #     result //= operand
+            elif operator == "~":
+                result *= operand
 
         return result
 
@@ -150,35 +184,33 @@ class KuppoLangParser:
         raise ValueError(f"Invalid variable token: {token}")
 
     def execute(self, code: str):
-        for line in code.strip().splitlines():
-            line = self.delete_comment(line)
-            tokens = self.tokenize(line.strip())
-            result = self.parse(tokens)
-            # if result:
-            #     print(result)
+        lines = code.strip().splitlines()
+        lines = [self.delete_comment(line) for line in lines]
+        idx = 0
+        
+        while idx < len(lines):
+            line = lines[idx].strip()
+            if line == "":
+                idx += 1
+                continue
 
-# 테스트
-interpreter = KuppoLangParser()
-code = """
-모그리다쿠뽀
-쿠뽀!폼~포오옴        # 첫 번째 변수에 4
-쿠뽀뽀!포오옴       # 두 번째 변수에 3
-쿠뽀뽀뽀!포오오옴    # 세 번째 변수에 4
-노동만세!!쿠뽀뽀~쿠뽀뽀?쿠뽀뽀    # 3 + 3 - 3 = 3
-쿠뽀뽀뽀뽀!포오옴      # 네 번째 변수에 3
-쿠뽀뽀뽀뽀뽀뽀!포오오오옴 # 여섯 번째 변수에 5
-노동만세!!쿠뽀뽀뽀뽀뽀뽀~쿠뽀뽀  # 5 + 3 = 8 출력
-노동멋져!포오오오오오오옴 # H
-노동멋져!포오오오옴 # E
-노동멋져!포오오오오오오오오오오옴 # L
-노동멋져!포오오오오오오오오오오옴 # L
-노동멋져!포오오오오오오오오오오오오오옴 # O
-노동멋져!뽐 # space bar
-노동멋져!포오오오오오오오오오옴 # K
-노동멋져!포오오오오오오오오오오오오오오오오오오오옴 # U
-노동멋져!포오오오오오오오오오오오오오오옴 # P
-노동멋져!!포오오오오오오오오오오오오오옴 # O
+            token = self.tokenize(line)
+            if token[0] == "END":
+                self.parse(token)
+                break
 
-메멘토모그리
-"""
-interpreter.execute(code)
+            result = self.parse(token)
+            if isinstance(result, tuple) and result[0] == "JUMP":
+                idx = result[1]
+                continue
+            idx += 1
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python kuppolang.py <filename>")
+        sys.exit(1)
+    filename = sys.argv[1]
+    with open(filename, "r", encoding="utf-8") as f:
+        code = f.read()
+    interpreter = KuppoLangParser()
+    interpreter.execute(code)
