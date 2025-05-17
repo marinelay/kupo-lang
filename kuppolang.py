@@ -1,9 +1,11 @@
 import sys
 import re
 
-PRINT_PREFIX = "노동만세"
-ASCII_PRINT_PREFIX = "노동멋져"
+PRINT_PREFX = "모그모그"
+PRINT_POSTFIX = "다쿠뽀~"
+ASCII_PRINT_POSTFIX = "다쿠뽀!"
 
+BRANCH_REGEX = r"메멘토(\s*(\S+))모그리(\s*(\S+))"
 
 class KuppoLangParser:
     def __init__(self):
@@ -16,19 +18,22 @@ class KuppoLangParser:
         return line.strip()
 
     def tokenize(self, line: str):
-        if line.startswith("모그리다쿠뽀"):
+        if line.startswith("시작이다쿠뽀"):
             return ("START",)
-        if line.startswith("메멘토모그리"):
+        if line.startswith("끝이다쿠뽀"):
             return ("END",)
-        if line.startswith(PRINT_PREFIX):
-            return ("PRINT", line)
-        if line.startswith(ASCII_PRINT_PREFIX):
-            return ("ASCII_PRINT", line)
-        if line.startswith("젠장쿠뽀"):
-            return ("JUMP", line[4:])
+        if line.startswith(PRINT_PREFX):
+            if line.endswith(PRINT_POSTFIX):
+                return ("PRINT", line)
+            if line.endswith(ASCII_PRINT_POSTFIX):
+                return ("ASCII_PRINT", line)
+            
+            raise ValueError(f"Invalid print command: {line}")
+        if line.startswith("폼폼"):
+            return ("JUMP", line[2:])
         
         # 쿠뿌{exp}?{statement}
-        if re.match(r"모그루(\s*(\S+))모그(\s*(\S+))", line):
+        if re.match(BRANCH_REGEX, line):
             return ("BRANCH", line)
         if re.match(r"(쿠뽀+)!(\s*(\S+))", line):
             return ("ASSIGN", line)
@@ -69,7 +74,7 @@ class KuppoLangParser:
         elif tokens[0] == "JUMP":
             return ("JUMP", self.parse_expr(tokens[1]))
         elif tokens[0] == "BRANCH":
-            match = re.match(r"모그루(\s*(\S+))모그(\s*(\S+))", tokens[1])
+            match = re.match(BRANCH_REGEX, tokens[1])
             branch_exp = match.group(2)
             execute_stmt = match.group(4)
 
@@ -104,31 +109,24 @@ class KuppoLangParser:
             return value
 
     def parse_print(self, command):
-        print_expression = command[len(PRINT_PREFIX):].strip()
-        is_enter = print_expression.startswith("!!")
+        print_expression = command[len(PRINT_PREFX):-len(PRINT_POSTFIX)].strip()
+        is_enter = (print_expression == "")
         if is_enter:
-            print_expression = print_expression[2:]
-        else:
-            print_expression = print_expression[1:]
+            print()
+            return
         
         value = self.parse_start(print_expression)
-        print(f"{value}", end="" if not is_enter else "\n")
+        print(f"{value}", end="")
 
     def parse_ascii_print(self, command):
-        ascii_expression = command[len(ASCII_PRINT_PREFIX):].strip()
-        is_enter = ascii_expression.startswith("!!")
-        if is_enter:
-            ascii_expression = ascii_expression[2:]
-        else:
-            ascii_expression = ascii_expression[1:]
-
+        ascii_expression = command[len(PRINT_PREFX):-len(ASCII_PRINT_POSTFIX)].strip()
         if ascii_expression == "":
             # space bar
-            print(" ", end="" if not is_enter else "\n")
+            print(" ", end="")
             return
 
         value = self.parse_start(ascii_expression)
-        print(f"{chr(value)}", end="" if not is_enter else "\n")
+        print(f"{chr(value)}", end="")
 
     def parse_expr(self, command):
         result = self.evaluate_expression(command)
@@ -205,12 +203,16 @@ class KuppoLangParser:
                 continue
             idx += 1
 
+def run(code):
+    interpreter = KuppoLangParser()
+    interpreter.execute(code)
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python kuppolang.py <filename>")
         sys.exit(1)
     filename = sys.argv[1]
-    with open(filename, "r", encoding="utf-8") as f:
+    with open(filename, "r") as f:
         code = f.read()
     interpreter = KuppoLangParser()
     interpreter.execute(code)
